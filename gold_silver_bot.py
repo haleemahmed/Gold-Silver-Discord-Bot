@@ -1,96 +1,84 @@
 import requests
-from datetime import datetime
 from bs4 import BeautifulSoup
 import re
 import os
 import json
+from datetime import datetime
 
-# Discord webhook URL (from GitHub secrets)
 WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 RATES_FILE = "rates.json"
 
-# Fetch rates from GoodReturns & LiveChennai
 def fetch_rates():
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    rates = {}
-
-    # Gold 24K & 22K from GoodReturns
     try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        # GoodReturns for gold
         response = requests.get("https://www.goodreturns.in/gold-rates/", headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = BeautifulSoup(response.text, 'html.parser')
         text = soup.get_text()
 
-        rates["gold_24k"] = float(re.search(r"24K.*?₹([\d,]+)", text).group(1).replace(",", ""))
-        rates["gold_22k"] = float(re.search(r"22K.*?₹([\d,]+)", text).group(1).replace(",", ""))
-    except:
-        rates["gold_24k"] = 13069
-        rates["gold_22k"] = 11980
+        gold_24k = float(re.search(r"24K[\s\S]*?₹([\d,]+)", text).group(1).replace(',', ''))
+        gold_22k = float(re.search(r"22K[\s\S]*?₹([\d,]+)", text).group(1).replace(',', ''))
 
-    # Silver from LiveChennai
-    try:
+        # LiveChennai for silver
         response2 = requests.get("https://www.livechennai.com/gold_silverrate.asp", headers=headers)
-        soup2 = BeautifulSoup(response2.text, "html.parser")
-        match = re.search(r'Silver.*?1 Gm.*?>([\d,\.]+)', str(soup2))
-        rates["silver"] = float(match.group(1).replace(",", "")) if match else 190
-    except:
-        rates["silver"] = 190
+        soup2 = BeautifulSoup(response2.text, 'html.parser')
+        silver_match = re.search(r'Silver\s*1\s*Gm\s*</td>\s*<td[^>]*>([\d,\.]+)', str(soup2))
+        silver = float(silver_match.group(1).replace(',', '')) if silver_match else 190.0
 
-    return rates
+        return {"gold_24k": gold_24k, "gold_22k": gold_22k, "silver": silver}
+    except Exception:
+        # fallback
+        return {"gold_24k": 13069.0, "gold_22k": 11980.0, "silver": 190.0}
 
-# Load previous rates
-def load_previous_rates():
+def load_previous():
     if os.path.exists(RATES_FILE):
         with open(RATES_FILE, "r") as f:
             return json.load(f)
     return {}
 
-# Save today rates
 def save_rates(rates):
     with open(RATES_FILE, "w") as f:
-        json.dump(rates, f, indent=2)
+        json.dump(rates, f)
 
-# Format price difference with arrow and color
-def format_diff(today, yesterday):
+def diff_symbol(today, yesterday):
+    if yesterday is None:
+        return "🟩 no change"
     diff = today - yesterday
     if diff > 0:
-        return f"₹{diff:,.0f} ▲", 0xFF0000  # red for increase
+        return "🔺 increase"
     elif diff < 0:
-        return f"- ₹{abs(diff):,.0f} ▼", 0x00FF00  # green for decrease
+        return "🔻 decrease"
     else:
-        return "No Change", 0x808080
+        return "🟩 no change"
 
-# Send Discord embed
-def send_to_discord(rates, prev):
-    now = datetime.now().strftime("%Y-%m-%d")
-
-    diff_24k, color_24k = format_diff(rates["gold_24k"], prev.get("gold_24k", rates["gold_24k"]))
-    diff_22k, color_22k = format_diff(rates["gold_22k"], prev.get("gold_22k", rates["gold_22k"]))
-    diff_silver, color_silver = format_diff(rates["silver"], prev.get("silver", rates["silver"]))
-
-    embed = {
-        "title": f"🇮🇳 Indian Gold & Silver Rates (as of {now})",
-        "color": 0xFFD700,
-        "fields": [
-            {"name": "🧈 Gold (24K - Pure Gold)", "value": f"₹{rates['gold_24k']:,.0f} /g  •  {diff_24k}", "inline": False},
-            {"name": "🧈 Gold (22K - Jewelry Gold)", "value": f"₹{rates['gold_22k']:,.0f} /g  •  {diff_22k}", "inline": False},
-            {"name": "🔘 Silver", "value": f"₹{rates['silver']:,.0f} /g  •  {diff_silver}", "inline": False},
-            {"name": "💰 1 Pavan (8g) Rates",
-             "value": f"24K: ₹{rates['gold_24k']*8:,.0f}\n22K: ₹{rates['gold_22k']*8:,.0f}\nSilver: ₹{rates['silver']*8:,.0f}",
-             "inline": False}
-        ],
-        "footer": {"text": "📊 Source: GoodReturns & LiveChennai | Updated daily at 10:00 AM IST (except Sunday)"}
-    }
-
-    requests.post(WEBHOOK_URL, json={"embeds": [embed]})
-
-# Main function
-def main():
+def post_to_discord():
     today_rates = fetch_rates()
-    prev_rates = load_previous_rates()
-    send_to_discord(today_rates, prev_rates)
+    prev_rates = load_previous()
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    message = f"🇮🇳 Indian Gold & Silver Rates (as of {today}):\n\n"
+
+    message += "🧈 Gold (24K - Pure Gold):\n"
+    message += f"• 1 gram → ₹{today_rates['gold_24k']:.2f} ({diff_symbol(today_rates['gold_24k'], prev_rates.get('gold_24k'))})\n"
+    message += f"• 1 pavan (8 g) → ₹{today_rates['gold_24k']*8:.2f}\n\n"
+
+    message += "🧈 Gold (22K - Jewelry Gold):\n"
+    message += f"• 1 gram → ₹{today_rates['gold_22k']:.2f} ({diff_symbol(today_rates['gold_22k'], prev_rates.get('gold_22k'))})\n"
+    message += f"• 1 pavan (8 g) → ₹{today_rates['gold_22k']*8:.2f}\n\n"
+
+    message += "🔘 Silver:\n"
+    message += f"• 1 gram → ₹{today_rates['silver']:.2f} ({diff_symbol(today_rates['silver'], prev_rates.get('silver'))})\n"
+    message += f"• 1 pavan (8 g) → ₹{today_rates['silver']*8:.2f}\n\n"
+
+    message += "📊 Rates sourced from Indian markets (GoodReturns & LiveChennai)\n"
+    message += "🕙 Updated automatically every day at 10:00 AM IST (except Sunday)"
+
+    # send to Discord
+    requests.post(WEBHOOK_URL, json={"content": message})
     save_rates(today_rates)
 
 if __name__ == "__main__":
     main()
+
 
 
