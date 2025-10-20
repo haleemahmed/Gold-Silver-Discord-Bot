@@ -77,8 +77,16 @@ def post_to_discord():
     requests.post(WEBHOOK_URL, json={"content": message})
     save_rates(today_rates)
 
+# Main function
+def main():
+    today_rates = fetch_rates()
+    prev_rates = load_previous_rates()
+    send_to_discord(today_rates, prev_rates)
+    save_rates(today_rates)
+
 if __name__ == "__main__":
     main()
+
 
 
 
