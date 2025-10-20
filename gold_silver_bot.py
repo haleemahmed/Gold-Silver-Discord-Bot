@@ -30,7 +30,7 @@ def fetch_rates():
         # fallback
         return {"gold_24k": 13069.0, "gold_22k": 11980.0, "silver": 190.0}
 
-def load_previous():
+def load_previous_rates():
     if os.path.exists(RATES_FILE):
         with open(RATES_FILE, "r") as f:
             return json.load(f)
@@ -86,6 +86,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
