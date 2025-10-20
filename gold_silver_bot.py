@@ -51,7 +51,7 @@ def diff_symbol(today, yesterday):
     else:
         return "🟩 no change"
 
-def post_to_discord():
+def send_to_discord():
     today_rates = fetch_rates()
     prev_rates = load_previous()
     today = datetime.now().strftime("%Y-%m-%d")
@@ -86,6 +86,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
