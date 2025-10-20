@@ -42,18 +42,16 @@ def save_rates(rates):
 
 def diff_symbol(today, yesterday):
     if yesterday is None:
-        return "🟩 no change"
+        return "(new)"
     diff = today - yesterday
     if diff > 0:
-        return "🔺 increase"
+        return f"🔺 +₹{diff:.2f}"
     elif diff < 0:
-        return "🔻 decrease"
+        return f"🔻 -₹{abs(diff):.2f}"
     else:
         return "🟩 no change"
 
-def send_to_discord():
-    today_rates = fetch_rates()
-    prev_rates = load_previous()
+def send_to_discord(today_rates, prev_rates):
     today = datetime.now().strftime("%Y-%m-%d")
 
     message = f"🇮🇳 Indian Gold & Silver Rates (as of {today}):\n\n"
@@ -73,22 +71,13 @@ def send_to_discord():
     message += "📊 Rates sourced from Indian markets (GoodReturns & LiveChennai)\n"
     message += "🕙 Updated automatically every day at 10:00 AM IST (except Sunday)"
 
-    # send to Discord
     requests.post(WEBHOOK_URL, json={"content": message})
     save_rates(today_rates)
 
-# Main function
 def main():
     today_rates = fetch_rates()
     prev_rates = load_previous_rates()
     send_to_discord(today_rates, prev_rates)
-    save_rates(today_rates)
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
