@@ -108,5 +108,6 @@ def main():
     save_rates(today_rates)
 
 
-if name == "main":
+if __name__ == "__main__":
     main()
+
