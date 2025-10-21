@@ -2,7 +2,7 @@ name: Daily Gold & Silver Update
 
 on:
   schedule:
-    - cron: '30 4 * * 1-6'  # 10:00 AM IST Mon-Sat
+    - cron: '45 4 * * 1-6'  # 10:00 AM IST Mon-Sat
   workflow_dispatch:
 
 jobs:
