@@ -67,42 +67,23 @@ def fetch_rates():
         gold_resp = requests.get(gold_url, headers=headers, timeout=10)
         soup = BeautifulSoup(gold_resp.text, "html.parser")
 
-        # Find the rate table
-        gold_table = soup.find("table", class_="gold_silver_table")
-        rows = gold_table.find_all("tr")
+        # Find all table cells that mention "Karat" and "₹"
+        text = soup.get_text(separator="\n")
+        matches = re.findall(r"(\d{2})\s*Karat.*?₹\s*([\d,]+)", text)
 
-        gold_24k = gold_22k = gold_18k = None
+        gold_rates = {f"gold_{k}k": float(v.replace(",", "")) for k, v in matches}
 
-        for row in rows:
-            cols = [c.get_text(strip=True) for c in row.find_all("td")]
-            if len(cols) >= 2:
-                if "24 Karat Gold" in cols[0] or "24k" in cols[0].lower():
-                    gold_24k = float(cols[1].replace("₹", "").replace(",", ""))
-                elif "22 Karat Gold" in cols[0] or "22k" in cols[0].lower():
-                    gold_22k = float(cols[1].replace("₹", "").replace(",", ""))
-                elif "18 Karat Gold" in cols[0] or "18k" in cols[0].lower():
-                    gold_18k = float(cols[1].replace("₹", "").replace(",", ""))
+        # Extract specific karats with fallback
+        gold_24k = gold_rates.get("gold_24k", 12589.0)
+        gold_22k = gold_rates.get("gold_22k", 11540.0)
+        gold_18k = gold_rates.get("gold_18k", 9600.0)
 
         # --- SILVER ---
         silver_url = "https://www.goodreturns.in/silver-rates/chennai.html"
         silver_resp = requests.get(silver_url, headers=headers, timeout=10)
-        silver_soup = BeautifulSoup(silver_resp.text, "html.parser")
-
-        silver_table = silver_soup.find("table", class_="gold_silver_table")
-        silver_rows = silver_table.find_all("tr")
-
-        silver = None
-        for row in silver_rows:
-            cols = [c.get_text(strip=True) for c in row.find_all("td")]
-            if len(cols) >= 2 and "1 gram" in cols[0].lower():
-                silver = float(cols[1].replace("₹", "").replace(",", ""))
-                break
-
-        # Default fallback if parsing fails
-        gold_24k = gold_24k or 12589.0
-        gold_22k = gold_22k or 11540.0
-        gold_18k = gold_18k or 9600.0
-        silver = silver or 171.0
+        silver_text = silver_resp.text
+        silver_match = re.search(r"1\s*gram.*?₹\s*([\d,]+)", silver_text, re.IGNORECASE)
+        silver = float(silver_match.group(1).replace(",", "")) if silver_match else 171.0
 
         print(f"✅ Successfully fetched: 24K={gold_24k}, 22K={gold_22k}, 18K={gold_18k}, Silver={silver}")
         return {
@@ -114,13 +95,14 @@ def fetch_rates():
 
     except Exception as e:
         print("⚠️ Error fetching rates:", e)
-        # fallback values
+        # fallback
         return {
             "gold_24k": 12589.0,
             "gold_22k": 11540.0,
             "gold_18k": 9600.0,
             "silver": 171.0
         }
+
 
 
 def load_previous_rates():
@@ -197,4 +179,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
