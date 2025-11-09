@@ -12,32 +12,97 @@ RATES_FILE = "rates.json"
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
+# def fetch_rates():
+#     """Fetch live gold and silver rates for Chennai from GoodReturns"""
+#     try:
+#         headers = {'User-Agent': 'Mozilla/5.0'}
+
+#         # --- GOLD (GoodReturns Chennai) ---
+#         gold_url = "https://www.goodreturns.in/gold-rates/chennai.html"
+#         gold_resp = requests.get(gold_url, headers=headers, timeout=10)
+#         gold_html = gold_resp.text
+
+#         # Extract gold rates from embedded JSON in page
+#         gold_data_match = re.findall(r'"(\d{2})K Gold"[\s\S]*?"price":"₹([\d,]+)"', gold_html)
+#         gold_rates = {f"gold_{k}k": float(v.replace(',', '')) for k, v in gold_data_match}
+
+#         gold_24k = gold_rates.get("gold_24k", 12589.0)
+#         gold_22k = gold_rates.get("gold_22k", 11540.0)
+#         gold_18k = gold_rates.get("gold_18k", 9600.0)
+
+#         # --- SILVER (GoodReturns Chennai) ---
+#         silver_url = "https://www.goodreturns.in/silver-rates/chennai.html"
+#         silver_resp = requests.get(silver_url, headers=headers, timeout=10)
+#         silver_html = silver_resp.text
+
+#         # Extract silver rate per gram
+#         silver_match = re.search(r'Silver\s*/g[\s\S]*?₹([\d,]+)', silver_html)
+#         silver = float(silver_match.group(1).replace(',', '')) if silver_match else 171.0
+
+#         print(f"✅ Successfully fetched: 24K={gold_24k}, 22K={gold_22k}, 18K={gold_18k}, Silver={silver}")
+#         return {
+#             "gold_24k": gold_24k,
+#             "gold_22k": gold_22k,
+#             "gold_18k": gold_18k,
+#             "silver": silver
+#         }
+
+#     except Exception as e:
+#         print("⚠️ Error fetching rates:", e)
+#         # fallback values (most recent working)
+#         return {
+#             "gold_24k": 12589.0,
+#             "gold_22k": 11540.0,
+#             "gold_18k": 9600.0,
+#             "silver": 171.0
+#         }
+
 def fetch_rates():
     """Fetch live gold and silver rates for Chennai from GoodReturns"""
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
 
-        # --- GOLD (GoodReturns Chennai) ---
+        # --- GOLD ---
         gold_url = "https://www.goodreturns.in/gold-rates/chennai.html"
         gold_resp = requests.get(gold_url, headers=headers, timeout=10)
-        gold_html = gold_resp.text
+        soup = BeautifulSoup(gold_resp.text, "html.parser")
 
-        # Extract gold rates from embedded JSON in page
-        gold_data_match = re.findall(r'"(\d{2})K Gold"[\s\S]*?"price":"₹([\d,]+)"', gold_html)
-        gold_rates = {f"gold_{k}k": float(v.replace(',', '')) for k, v in gold_data_match}
+        # Find the rate table
+        gold_table = soup.find("table", class_="gold_silver_table")
+        rows = gold_table.find_all("tr")
 
-        gold_24k = gold_rates.get("gold_24k", 12589.0)
-        gold_22k = gold_rates.get("gold_22k", 11540.0)
-        gold_18k = gold_rates.get("gold_18k", 9600.0)
+        gold_24k = gold_22k = gold_18k = None
 
-        # --- SILVER (GoodReturns Chennai) ---
+        for row in rows:
+            cols = [c.get_text(strip=True) for c in row.find_all("td")]
+            if len(cols) >= 2:
+                if "24 Karat Gold" in cols[0] or "24k" in cols[0].lower():
+                    gold_24k = float(cols[1].replace("₹", "").replace(",", ""))
+                elif "22 Karat Gold" in cols[0] or "22k" in cols[0].lower():
+                    gold_22k = float(cols[1].replace("₹", "").replace(",", ""))
+                elif "18 Karat Gold" in cols[0] or "18k" in cols[0].lower():
+                    gold_18k = float(cols[1].replace("₹", "").replace(",", ""))
+
+        # --- SILVER ---
         silver_url = "https://www.goodreturns.in/silver-rates/chennai.html"
         silver_resp = requests.get(silver_url, headers=headers, timeout=10)
-        silver_html = silver_resp.text
+        silver_soup = BeautifulSoup(silver_resp.text, "html.parser")
 
-        # Extract silver rate per gram
-        silver_match = re.search(r'Silver\s*/g[\s\S]*?₹([\d,]+)', silver_html)
-        silver = float(silver_match.group(1).replace(',', '')) if silver_match else 171.0
+        silver_table = silver_soup.find("table", class_="gold_silver_table")
+        silver_rows = silver_table.find_all("tr")
+
+        silver = None
+        for row in silver_rows:
+            cols = [c.get_text(strip=True) for c in row.find_all("td")]
+            if len(cols) >= 2 and "1 gram" in cols[0].lower():
+                silver = float(cols[1].replace("₹", "").replace(",", ""))
+                break
+
+        # Default fallback if parsing fails
+        gold_24k = gold_24k or 12589.0
+        gold_22k = gold_22k or 11540.0
+        gold_18k = gold_18k or 9600.0
+        silver = silver or 171.0
 
         print(f"✅ Successfully fetched: 24K={gold_24k}, 22K={gold_22k}, 18K={gold_18k}, Silver={silver}")
         return {
@@ -49,7 +114,7 @@ def fetch_rates():
 
     except Exception as e:
         print("⚠️ Error fetching rates:", e)
-        # fallback values (most recent working)
+        # fallback values
         return {
             "gold_24k": 12589.0,
             "gold_22k": 11540.0,
@@ -132,3 +197,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
